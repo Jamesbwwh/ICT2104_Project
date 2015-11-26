@@ -78,15 +78,15 @@ const struct menu menu_L1_Alarm = {
     &menu_L1_Time,
 };
 
-//// Line2 - Date
-//const struct menu menu_L2_Date = {
-//    FUNCTION(sx_date),                // direct function
-//    FUNCTION(mx_date),                // sub menu function
-//    FUNCTION(display_date),           // display function
-//    FUNCTION(update_date),            // new display data
-//    &menu_L2_Stopwatch,
-//};
-//
+// Line2 - Date
+const struct menu menu_L2_Date = {
+    FUNCTION(dummy),                // direct function
+    FUNCTION(dummy),                // sub menu function
+    FUNCTION(dummy2),               // display function
+    FUNCTION(dummy3),               // new display data
+    &menu_L2_Date,
+};
+
 //// Line2 - Stopwatch
 //const struct menu menu_L2_Stopwatch = {
 //    FUNCTION(sx_stopwatch),           // direct function

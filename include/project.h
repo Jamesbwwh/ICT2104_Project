@@ -66,27 +66,4 @@ typedef union {
 } s_request_flags;
 extern volatile s_request_flags request;
 
-// Set of message flags
-typedef union {
-    struct {
-        u16 prepare : 1;                  // 1 = Wait for clock tick, then set
-                                          // display.flag.show_message flag
-        u16 show : 1;                     // 1 = Display message now
-        u16 erase : 1;                    // 1 = Erase message
-        u16 type_locked : 1;              // 1 = Show "buttons are locked" in Line2
-        u16 type_unlocked : 1;            // 1 = Show "buttons are unlocked" in Line2
-        u16 type_lobatt : 1;              // 1 = Show "lobatt" text in Line2
-        u16 type_alarm_on : 1;            // 1 = Show "  on" text in Line1
-        u16 type_alarm_off : 1;           // 1 = Show " off" text in Line1
-    } flag;
-    u16 all_flags;                        // Shortcut to all message flags (for reset)
-} s_message_flags;
-extern volatile s_message_flags message;
-
-// *************************************************************************************************
-// Global Variable section
-
-// Global flag set if Bosch sensors are used
-extern u8 bmp_used;
-
 #endif                                    /*PROJECT_H_ */

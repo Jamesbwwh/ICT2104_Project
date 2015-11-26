@@ -19,45 +19,32 @@
 #include "user.h"
 
 // *************************************************************************************************
-// Prototypes section
-
-// *************************************************************************************************
-// Defines section
-
-// *************************************************************************************************
-// Global Variable section
-
-// *************************************************************************************************
 // Extern section
-extern void idle_loop(void);
+extern void to_lpm(void);
 
 // *************************************************************************************************
-// @fn          dummy
+// @fn          dummy, dummy2, dummy3
 // @brief       Dummy direct function.
-// @param       u8 line LINE1, LINE2
+// @param       none
 // @return      none
 // *************************************************************************************************
-void dummy(u8 line) {
+void dummy(u8 line) {}
+void dummy2(u8 line, u8 update) {}
+u8 dummy3(void) {
+	return 0;
 }
 
 // *************************************************************************************************
 // @fn          set_value
 // @brief       Generic value setting routine
-// @param       s32 * value                                                     Pointer to value to
-// set
-//                              u8digits
-//                                                        Number of digits
-//                              u8 blanks
-//                                                       Number of whitespaces before first valid
-// digit
-//                              s32 limitLow                                            Lower limit
-// of value
-//                              s32 limitHigh                                           Upper limit
-// of value
-//                              u16 mode
-//                              u8 segments
-//                                                     Segments where value should be drawn
-//                              fptr_setValue_display_function1         Value-specific display
+// @param       s32 * value                      Pointer to value to set
+//              u8 digits                        Number of digits
+//              u8 blanks                        Number of whitespaces before first valid digit
+//              s32 limitLow                     Lower limit of value
+//              s32 limitHigh                    Upper limit of value
+//              u16 mode
+//              u8 segments                      Segments where value should be drawn
+//              fptr_setValue_display_function1  Value-specific display
 // routine
 // @return      none
 // *************************************************************************************************
@@ -66,96 +53,50 @@ void set_value(s32 * value, u8 digits, u8 blanks, s32 limitLow, s32 limitHigh, u
     u8 update;
     s16 stepValue = 1;
     u8 doRound = 0;
-    //u8 stopwatch_state;
     u32 val;
 
-    // Clear button flags
-    button.all_flags = 0;
+    button.all_flags = 0;    // Clear button flags
+    clear_blink_mem();       // Clear blink memory
+    stop_buzzer();           // For safety only - buzzer on/off and button_repeat share same IRQ
 
-    // Clear blink memory
-    clear_blink_mem();
+    sButton.repeats = 0;     // Init step size and repeat counter
+    update = 1;              // Initial display update
+    button_repeat_on(200);   // Turn on 200ms button repeat function
+    set_blink_rate(BIT6 + BIT5); // Start blinking with with 2Hz
 
-    // For safety only - buzzer on/off and button_repeat share same IRQ
-    stop_buzzer();
-
-    // Disable stopwatch display update while function is active
-    //stopwatch_state = sStopwatch.state;
-    //sStopwatch.state = STOPWATCH_HIDE;
-
-    // Init step size and repeat counter
-    sButton.repeats = 0;
-
-    // Initial display update
-    update = 1;
-
-    // Turn on 200ms button repeat function
-    button_repeat_on(200);
-
-    // Start blinking with with 2Hz
-    set_blink_rate(BIT6 + BIT5);
-
-    // Value set loop
     while (1) {
-        // Idle timeout: exit function
-        if (sys.flag.idle_timeout)
-            break;
-
-        // Button STAR (short) button: exit function
-        if (button.flag.star)
-            break;
-
-        // NUM button: exit function and goto to next value (if available)
-        if (button.flag.num) {
-            if ((mode & SETVALUE_NEXT_VALUE) == SETVALUE_NEXT_VALUE)
-                break;
+        if (sys.flag.idle_timeout) break; // Idle timeout: exit function
+        if (button.flag.star) break;      // Button STAR (short) button: exit function
+        if (button.flag.num) {            // NUM button: exit function and goto to next value (if available)
+            if ((mode & SETVALUE_NEXT_VALUE) == SETVALUE_NEXT_VALUE) break;
         }
 
         // UP button: increase value
         if (button.flag.up) {
-            // Increase value
-            *value = *value + stepValue;
-
+            *value = *value + stepValue;            // Increase value
             // Check value limits
             if (*value > limitHigh) {
                 // Check if value can roll over, else stick to limit
-                if ((mode & SETVALUE_ROLLOVER_VALUE) == SETVALUE_ROLLOVER_VALUE)
-                    *value = limitLow;
-                else
-                    *value = limitHigh;
-
-                // Reset step size to default
-                stepValue = 1;
+                if ((mode & SETVALUE_ROLLOVER_VALUE) == SETVALUE_ROLLOVER_VALUE) *value = limitLow;
+                else *value = limitHigh;
+                stepValue = 1;     // Reset step size to default
             }
-
-            // Trigger display update
-            update = 1;
-
-            // Clear button flag
-            button.flag.up = 0;
+            update = 1;            // Trigger display update
+            button.flag.up = 0;    // Clear button flag
         }
 
         // DOWN button: decrease value
         if (button.flag.down) {
-            // Decrease value
-            *value = *value - stepValue;
-
+            *value = *value - stepValue;            // Decrease value
             // Check value limits
             if (*value < limitLow) {
                 // Check if value can roll over, else stick to limit
-                if ((mode & SETVALUE_ROLLOVER_VALUE) == SETVALUE_ROLLOVER_VALUE)
-                    *value = limitHigh;
-                else
-                    *value = limitLow;
-
-                // Reset step size to default
-                stepValue = 1;
+                if ((mode & SETVALUE_ROLLOVER_VALUE) == SETVALUE_ROLLOVER_VALUE) *value = limitHigh;
+                else *value = limitLow;
+                stepValue = 1;     // Reset step size to default
             }
-
-            // Trigger display update
-            update = 1;
-
-            // Clear button flag
-            button.flag.down = 0;
+            update = 1;            // Trigger display update
+            button.flag.down = 0;  // Clear button flag
         }
 
         // When fast mode is enabled, increase step size if Sx button is continuously
@@ -210,26 +151,13 @@ void set_value(s32 * value, u8 digits, u8 blanks, s32 limitLow, s32 limitHigh, u
             // or display a string referenced by the value
             fptr_setValue_display_function1(segments, val, digits, blanks);
 
-            // Clear update flag
-            update = 0;
+            update = 0;  // Clear update flag
         }
-
-        // Call idle loop to serve background tasks
-        idle_loop();
-
+        to_lpm();        // Call idle loop to serve background tasks
     }
-
-    // Clear up and down arrows
-    display_symbol(LCD_SYMB_ARROW_UP, SEG_OFF);
+    display_symbol(LCD_SYMB_ARROW_UP, SEG_OFF);  // Clear up and down arrows
     display_symbol(LCD_SYMB_ARROW_DOWN, SEG_OFF);
-
-    // Set blinking rate to 1Hz and stop
-    set_blink_rate(BIT7 + BIT6 + BIT5);
+    set_blink_rate(BIT7 + BIT6 + BIT5);          // Set blinking rate to 1Hz and stop
     clear_blink_mem();
-
-    // Turn off button repeat function
-    button_repeat_off();
-
-    // Enable stopwatch display updates again
-    //sStopwatch.state = stopwatch_state;
+    button_repeat_off();                         // Turn off button repeat function
 }

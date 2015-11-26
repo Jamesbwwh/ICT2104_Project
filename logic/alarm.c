@@ -94,16 +94,8 @@ void sx_alarm(u8 line) {
         // Toggle alarm state
         if (sAlarm.state == ALARM_DISABLED) {
             sAlarm.state = ALARM_ENABLED;
-
-            // Show "  on" message
-            message.flag.prepare = 1;
-            message.flag.type_alarm_on = 1;
         } else if (sAlarm.state == ALARM_ENABLED) {
             sAlarm.state = ALARM_DISABLED;
-
-            // Show "  off" message
-            message.flag.prepare = 1;
-            message.flag.type_alarm_off = 1;
         }
     }
 }
@@ -220,4 +212,3 @@ void display_alarm(u8 line, u8 update) {
         }
     }
 }
-

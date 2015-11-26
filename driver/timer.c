@@ -190,65 +190,20 @@ void Timer0_A4_Delay(u16 ticks) {
 __interrupt void TIMER0_A0_ISR(void) {
     static u8 button_lock_counter = 0;
 
-    // Disable IE
-    TA0CCTL0 &= ~CCIE;
-    // Reset IRQ flag
-    TA0CCTL0 &= ~CCIFG;
-    // Add 1 sec to TACCR0 register (IRQ will be asserted at 0x7FFF and 0xFFFF = 1 sec intervals)
-    TA0CCR0 += 32768;
-    // Enable IE
-    TA0CCTL0 |= CCIE;
+    TA0CCTL0 &= ~CCIE;   // Disable IE
+    TA0CCTL0 &= ~CCIFG;  // Reset IRQ flag
+    TA0CCR0 += 32768;    // Add 1 sec to TACCR0 register (IRQ will be asserted at 0x7FFF and 0xFFFF = 1 sec intervals)
+    TA0CCTL0 |= CCIE;    // Enable IE
 
-    // Add 1 second to global time
-    clock_tick();
+    clock_tick();    // Add 1 second to global time
+    display.flag.update_time = 1;    // Set clock update flag
 
-    // Set clock update flag
-    display.flag.update_time = 1;
-
-    // While SimpliciTI stack operates or BlueRobin searches, freeze system state
-    //if (is_rf() || is_bluerobin_searching())
-    //{
-    // SimpliciTI automatic timeout
-    //if (sRFsmpl.timeout == 0)
-    //{
-    //    simpliciti_flag |= SIMPLICITI_TRIGGER_STOP;
-    //}
-    //else
-    //{
-    //    sRFsmpl.timeout--;
-    //}
-
-    // switch message after received packet
-    //if (sRFsmpl.mode == SIMPLICITI_SYNC)
-    //{
-    //    if (sRFsmpl.display_sync_done == 0)
-    //    {
-    //        display_chars(LCD_SEG_L2_5_0, (u8 *) "  SYNC", SEG_ON);
-    //    }
-    //    else
-    //    {
-    //        sRFsmpl.display_sync_done--;
-    //    }
-    //}
-    // Exit from LPM3 on RETI
-    //_BIC_SR_IRQ(LPM3_bits);
-    //return;
-    //}
-
-    // -------------------------------------------------------------------
     // Service modules that require 1/min processing
     if (sTime.drawFlag >= 2) {
-        // Measure battery voltage to keep track of remaining battery life
-        request.flag.voltage_measurement = 1;
-
-        // Check if alarm needs to be turned on
-        check_alarm();
+        check_alarm();        // Check if alarm needs to be turned on
     }
 
-    // -------------------------------------------------------------------
     // Service active modules that require 1/s processing
-
-    // Generate alarm signal
     if (sAlarm.state == ALARM_ON) {
         // Decrement alarm duration counter
         if (sAlarm.duration-- > 0) {
@@ -259,101 +214,11 @@ __interrupt void TIMER0_A0_ISR(void) {
         }
     }
 
-    // Do a temperature measurement each second while menu item is active
-    //if (is_temp_measurement())
-    //    request.flag.temperature_measurement = 1;
-
-    // Do a pressure measurement each second while menu item is active
-    //if (is_altitude_measurement())
-    //{
-    // Countdown altitude measurement timeout while menu item is active
-    //    sAlt.timeout--;
-
-    // Stop measurement when timeout has elapsed
-    //    if (sAlt.timeout == 0)
-    //    {
-    //        stop_altitude_measurement();
-    // Show ---- m/ft
-    //        display_chars(LCD_SEG_L1_3_0, (u8 *) "----", SEG_ON);
-    // Clear up/down arrow
-    //        display_symbol(LCD_SYMB_ARROW_UP, SEG_OFF);
-    //        display_symbol(LCD_SYMB_ARROW_DOWN, SEG_OFF);
-    //    }
-    //    else
-    //    {
-    //        if (bmp_used)
-    //        {
-    //            bmp_ps_start();
-    //        }
-    //    }
-
-    // In case we missed the IRQ due to debouncing, get data now
-    //    if ((PS_INT_IN & PS_INT_PIN) == PS_INT_PIN)
-    //        request.flag.altitude_measurement = 1;
-    //}
-
-    // Count down timeout
-    //if (is_acceleration_measurement())
-    //{
-    // Countdown acceleration measurement timeout
-    //    sAccel.timeout--;
-
-    // Stop measurement when timeout has elapsed
-    //    if (sAccel.timeout == 0)
-    //    {
-    //    	if (bmp_used)
-    //    	{
-    //        	bmp_as_stop();
-    //    	}
-    //    	else
-    //    	{
-    //            cma_as_stop();
-    //    	}
-    // Show ----
-    //        display_chars(LCD_SEG_L1_3_0, (u8 *) "----", SEG_ON);
-    // Clear up/down arrow
-    //        display_symbol(LCD_SYMB_ARROW_UP, SEG_OFF);
-    //        display_symbol(LCD_SYMB_ARROW_DOWN, SEG_OFF);
-    //        display_symbol(LCD_SEG_L1_DP1, SEG_OFF);
-    //    }
-
-    // If DRDY is (still) high, request data again
-    //    if ((AS_INT_IN & AS_INT_PIN) == AS_INT_PIN)
-    //        request.flag.acceleration_measurement = 1;
-    //}
-
-    // If BlueRobin transmitter is connected, get data from API
-    //if (is_bluerobin())
-    //    get_bluerobin_data();
-
-    // If battery is low, decrement display counter
-//    if (sys.flag.low_battery) {
-//        if (sBatt.lobatt_display-- == 0) {
-//            message.flag.prepare = 1;
-//            message.flag.type_lobatt = 1;
-//            sBatt.lobatt_display = BATTERY_LOW_MESSAGE_CYCLE;
-//        }
-//    }
-
-    // If a message has to be displayed, set display flag
-    if (message.all_flags) {
-        if (message.flag.prepare) {
-            message.flag.prepare = 0;
-            message.flag.show = 1;
-        } else if (message.flag.erase) { // message cycle is over, so erase it
-            message.flag.erase = 0;
-            display.flag.full_update = 1;
-        }
-    }
-
-    // -------------------------------------------------------------------
-    // Check idle timeout, set timeout flag
     if (sys.flag.idle_timeout_enabled) {
         if (sTime.system_time - sTime.last_activity > INACTIVITY_TIME)
             sys.flag.idle_timeout = 1;  //setFlag(sysFlag_g, SYS_TIMEOUT_IDLE);
     }
 
-    // -------------------------------------------------------------------
     // Turn the Backlight off after timeout
     if (sButton.backlight_status == 1) {
         if (sButton.backlight_timeout > BACKLIGHT_TIME_ON) {
@@ -375,13 +240,6 @@ __interrupt void TIMER0_A0_ISR(void) {
         if (button_lock_counter++ > LEFT_BUTTON_LONG_TIME) {
             // Toggle lock / unlock buttons flag
             sys.flag.lock_buttons = ~sys.flag.lock_buttons;
-
-            // Show "buttons are locked/unlocked" message synchronously with next second tick
-            message.flag.prepare = 1;
-            if (sys.flag.lock_buttons)
-                message.flag.type_locked = 1;
-            else
-                message.flag.type_unlocked = 1;
 
             // Reset button lock counter
             button_lock_counter = 0;
@@ -421,8 +279,7 @@ __interrupt void TIMER0_A0_ISR(void) {
         }
     }
 
-    // Exit from LPM3 on RETI
-    _BIC_SR_IRQ(LPM3_bits);
+    _BIC_SR_IRQ(LPM3_bits);    // Exit from LPM3 on RETI
 }
 
 // *************************************************************************************************
@@ -443,53 +300,24 @@ __interrupt void TIMER0_A1_5_ISR(void) {
     u16 value = 0;
 
     switch (TA0IV) {
-    // Timer0_A1    BlueRobin timer
-    //case 0x02:             // Timer0_A1 handler
-    //    BRRX_TimerTask_v();
-    //    break;
-
-    // Timer0_A2    1/1 or 1/100 sec Stopwatch
-    case 0x04:             // Timer0_A2 handler
-        // Disable IE
-        TA0CCTL2 &= ~CCIE;
-        // Reset IRQ flag
-        TA0CCTL2 &= ~CCIFG;
-        // Load CCR register with next capture point
-        //update_stopwatch_timer();
-        // Enable timer interrupt
-        TA0CCTL2 |= CCIE;
-        // Increase stopwatch counter
-        //stopwatch_tick();
-        break;
-
     // Timer0_A3    Configurable periodic IRQ (used by button_repeat and buzzer)
-    case 0x06:             // Disable IE
-        TA0CCTL3 &= ~CCIE;
-        // Reset IRQ flag
-        TA0CCTL3 &= ~CCIFG;
-        // Store new value in CCR
-        // To make sure this value is correctly read
-        while (value != TA0R)
-            value = TA0R;
-        value += sTimer.timer0_A3_ticks;
-        // Load CCR register with next capture point
-        TA0CCR3 = value;
-        // Enable timer interrupt
-        TA0CCTL3 |= CCIE;
-        // Call function handler
-        fptr_Timer0_A3_function();
+    case 0x06:
+        TA0CCTL3 &= ~CCIE;                  // Disable IE
+        TA0CCTL3 &= ~CCIFG;                 // Reset IRQ flag
+        while (value != TA0R) value = TA0R; // Store new value in CCR
+        value += sTimer.timer0_A3_ticks;    // To make sure this value is correctly read
+        TA0CCR3 = value;                    // Load CCR register with next capture point
+        TA0CCTL3 |= CCIE;                   // Enable timer interrupt
+        fptr_Timer0_A3_function();          // Call function handler
         break;
 
     // Timer0_A4    One-time delay
-    case 0x08:             // Disable IE
-        TA0CCTL4 &= ~CCIE;
-        // Reset IRQ flag
-        TA0CCTL4 &= ~CCIFG;
-        // Set delay over flag
-        sys.flag.delay_over = 1;
+    case 0x08:
+        TA0CCTL4 &= ~CCIE;             // Disable IE
+        TA0CCTL4 &= ~CCIFG;            // Reset IRQ flag
+        sys.flag.delay_over = 1;       // Set delay over flag
         break;
     }
 
-    // Exit from LPM3 on RETI
-    _BIC_SR_IRQ(LPM3_bits);
+    _BIC_SR_IRQ(LPM3_bits);    // Exit from LPM3 on RETI
 }

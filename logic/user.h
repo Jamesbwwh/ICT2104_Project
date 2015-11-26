@@ -17,5 +17,7 @@ extern void (*fptr_setValue_display_function1)(u8 segments, u32 value, u8 digits
 extern void set_value(s32 * value, u8 digits, u8 blanks, s32 limitLow, s32 limitHigh, u16 mode, u8 segments,
                       void (*fptr_setValue_display_function1)(u8 segments, u32 value, u8 digits, u8 blanks));
 extern void dummy(u8 line);
+extern void dummy2(u8 line, u8 update);
+extern u8 dummy3(void);
 
 #endif                          /*USER_H_ */

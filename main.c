@@ -20,7 +20,6 @@
 // logic
 #include "menu.h"
 #include "alarm.h"
-#include "test.h"
 
 // *************************************************************************************************
 // Prototypes section
@@ -29,15 +28,8 @@ void init_global_variables(void);
 void wakeup_event(void);
 void process_requests(void);
 void display_update(void);
-void idle_loop(void);
+void to_lpm(void);
 void configure_ports(void);
-//void read_calibration_values(void);
-
-// *************************************************************************************************
-// Defines section
-
-// Number of calibration data bytes in INFOA memory
-#define CALIBRATION_DATA_LENGTH         (13u)
 
 // *************************************************************************************************
 // Global Variable section
@@ -48,28 +40,9 @@ volatile s_system_flags sys;
 // Variable holding flags set by logic modules
 volatile s_request_flags request;
 
-// Variable holding message flags
-volatile s_message_flags message;
-
-// Global flag set if Bosch sensors are used
-u8 bmp_used;
-/* Global flag used to adjust the difference in RF settings
- * (Base frequency and output power)
- * between Chronos with Black PCB and Chronos with White PCB */
-u8 chronos_black;
-
-// Global radio frequency offset taken from calibration memory
-// Compensates crystal deviation from 26MHz nominal value
-//u8 rf_frequoffset;
-
 // Function pointers for LINE1 and LINE2 display function
 void (*fptr_lcd_function_line1)(u8 line, u8 update);
 void (*fptr_lcd_function_line2)(u8 line, u8 update);
-
-// *************************************************************************************************
-// Extern section
-
-//extern void start_simpliciti_sync(void);
 
 // *************************************************************************************************
 // @fn          main
@@ -84,13 +57,10 @@ int main(void) {
     // Assign initial value to global variables
     init_global_variables();
 
-    // Branch to welcome screen
-    test_mode();
-
     // Main control loop: wait in low power mode until some event needs to be processed
     while (1) {
         // When idle go to LPM3
-        idle_loop();
+        to_lpm();
 
         // Process wake-up events
         if (button.all_flags || sys.all_flags)
@@ -115,15 +85,7 @@ int main(void) {
 void init_application(void) {
     volatile unsigned char *ptr;
 
-    // ---------------------------------------------------------------------
-    // Enable watchdog
-
-    // Watchdog triggers after 16 seconds when not cleared
-#ifdef USE_WATCHDOG
-    WDTCTL = WDTPW + WDTIS__512K + WDTSSEL__ACLK;
-#else
     WDTCTL = WDTPW + WDTHOLD;
-#endif
 
     // ---------------------------------------------------------------------
     // Configure PMM
@@ -167,74 +129,26 @@ void init_application(void) {
     // ---------------------------------------------------------------------
     // Configure port mapping
 
-    // Disable all interrupts
-    __disable_interrupt();
-    // Get write-access to port mapping registers:
-    PMAPPWD = 0x02D52;
-    // Allow reconfiguration during runtime:
-    PMAPCTL = PMAPRECFG;
+    __disable_interrupt();    // Disable all interrupts
+    PMAPPWD = 0x02D52;        // Get write-access to port mapping registers
+    PMAPCTL = PMAPRECFG;      // Allow reconfiguration during runtime
 
-    // P2.7 = TA0CCR1A or TA1CCR0A output (buzzer output)
-    ptr = &P2MAP0;
+    ptr = &P2MAP0;            // P2.7 = TA0CCR1A or TA1CCR0A output (buzzer output)
     *(ptr + 7) = PM_TA1CCR0A;
     P2OUT &= ~BIT7;
     P2DIR |= BIT7;
 
-    // P1.5 = SPI MISO input
     ptr = &P1MAP0;
-    *(ptr + 5) = PM_UCA0SOMI;
-    // P1.6 = SPI MOSI output
-    *(ptr + 6) = PM_UCA0SIMO;
-    // P1.7 = SPI CLK output
-    *(ptr + 7) = PM_UCA0CLK;
+    *(ptr + 5) = PM_UCA0SOMI;    // P1.5 = SPI MISO input
+    *(ptr + 6) = PM_UCA0SIMO;    // P1.6 = SPI MOSI output
+    *(ptr + 7) = PM_UCA0CLK;     // P1.7 = SPI CLK output
 
-    // Disable write-access to port mapping registers:
-    PMAPPWD = 0;
-    // Re-enable all interrupts
-    __enable_interrupt();
+    PMAPPWD = 0;             // Disable write-access to port mapping registers
+    __enable_interrupt();    // Re-enable all interrupts
 
-    // ---------------------------------------------------------------------
-    // Configure ports
-
-    // ---------------------------------------------------------------------
-    // Reset radio core
-    //radio_reset();
-    //radio_powerdown();
-
-    // ---------------------------------------------------------------------
-    // Init acceleration sensor
-    //as_init();
-
-    // ---------------------------------------------------------------------
-    // Init LCD
     lcd_init();
-
-    // ---------------------------------------------------------------------
-    // Init buttons
     init_buttons();
-
-    // ---------------------------------------------------------------------
-    // Configure Timer0 for use by the clock and delay functions
     Timer0_Init();
-    // ---------------------------------------------------------------------
-
-    // ---------------------------------------------------------------------
-    // Init pressure sensor
-    //bmp_ps_init();
-    // Bosch sensor not found?
-    //if (!ps_ok)
-    //{
-    //    bmp_used = 0;
-    //    cma_ps_init();
-    //    // Chronos with Black PCB
-    //    chronos_black = 1;
-    //}
-    //else
-    //{
-    //	bmp_used = 1;
-    //	// Chronos with White PCB
-    //	chronos_black = 0;
-    //}
 }
 
 // *************************************************************************************************
@@ -244,26 +158,9 @@ void init_application(void) {
 // @return      none
 // *************************************************************************************************
 void init_global_variables(void) {
-    // --------------------------------------------
-    // Apply default settings
-
     // set menu pointers to default menu items
     ptrMenu_L1 = &menu_L1_Time;
-    //      ptrMenu_L1 = &menu_L1_Alarm;
-    //      ptrMenu_L1 = &menu_L1_Heartrate;
-    //      ptrMenu_L1 = &menu_L1_Speed;
-    //      ptrMenu_L1 = &menu_L1_Temperature;
-    //      ptrMenu_L1 = &menu_L1_Altitude;
-    //      ptrMenu_L1 = &menu_L1_Acceleration;
-    //      ptrMenu_L2 = &menu_L2_Date;
-    //      ptrMenu_L2 = &menu_L2_Stopwatch;
-    //      ptrMenu_L2 = &menu_L2_Rf;
-    //      ptrMenu_L2 = &menu_L2_Ppt;
-    //      ptrMenu_L2 = &menu_L2_Sync;
-    //      ptrMenu_L2 = &menu_L2_Distance;
-    //      ptrMenu_L2 = &menu_L2_Calories;
-    //      ptrMenu_L2 = &menu_L2_Battery;
-    //      ptrMenu_L2 = &menu_L2_RFBSL;
+    ptrMenu_L2 = &menu_L2_Date;
 
     // Assign LINE1 and LINE2 display functions
     fptr_lcd_function_line1 = ptrMenu_L1->display_function;
@@ -274,7 +171,6 @@ void init_global_variables(void) {
     sys.all_flags = 0;
     request.all_flags = 0;
     display.all_flags = 0;
-    message.all_flags = 0;
 
     // Force full display update when starting up
     display.flag.full_update = 1;
@@ -284,42 +180,9 @@ void init_global_variables(void) {
     sys.flag.use_metric_units = 1;
 #endif
 
-    // Read calibration values from info memory
-    //read_calibration_values();
-
-    // Set system time to default value
-    reset_clock();
-
-    // Set date to default value
-    //reset_date();
-
-    // Set alarm time to default value
-    reset_alarm();
-
-    // Set buzzer to default value
-    reset_buzzer();
-
-    // Reset stopwatch
-    //reset_stopwatch();
-
-    // Reset altitude measurement
-    //reset_altitude_measurement();
-
-    // Reset acceleration measurement
-    //reset_acceleration();
-
-    // Reset BlueRobin stack
-    //reset_bluerobin();
-
-    // Reset SimpliciTI stack
-    //reset_rf();
-
-    // Reset temperature measurement
-    //reset_temp_measurement();
-
-    // Reset battery measurement
-    //reset_batt_measurement();
-    //battery_measurement();
+    reset_clock();    // Set system time to default value
+    reset_alarm();    // Set alarm time to default value
+    reset_buzzer();   // Set buzzer to default value
 }
 
 // *************************************************************************************************
@@ -332,122 +195,42 @@ void wakeup_event(void) {
     // Enable idle timeout
     sys.flag.idle_timeout_enabled = 1;
 
-    // If buttons are locked, only display "buttons are locked" message
-    if (button.all_flags && sys.flag.lock_buttons) {
-        // Show "buttons are locked" message synchronously with next second tick
-        if (!(BUTTON_NUM_IS_PRESSED && BUTTON_DOWN_IS_PRESSED)) {
-            message.flag.prepare = 1;
-            message.flag.type_locked = 1;
-        }
-        // Clear buttons
-        button.all_flags = 0;
-    }
-    // Process long button press event (while button is held)
-    else if (button.flag.star_long) {
-        // Clear button event
-        button.flag.star_long = 0;
-
-        // Call sub menu function
-        ptrMenu_L1->mx_function(LINE1);
-
-        // Set display update flag
-        display.flag.full_update = 1;
+    if (button.flag.star_long) {
+        button.flag.star_long = 0;        // Clear button event
+        ptrMenu_L1->mx_function(LINE1);   // Call sub menu function
+        display.flag.full_update = 1;     // Set display update flag
     } else if (button.flag.num_long) {
-        // Clear button event
-        button.flag.num_long = 0;
-
-        // Call sub menu function
-        ptrMenu_L2->mx_function(LINE2);
-
-        // Set display update flag
-        display.flag.full_update = 1;
-    }
-    // Process single button press event (after button was released)
-    else if (button.all_flags) {
-        // M1 button event ---------------------------------------------------------------------
-        // (Short) Advance to next menu item
-        if (button.flag.star) {
-            // Clean up display before activating next menu item
-            fptr_lcd_function_line1(LINE1, DISPLAY_LINE_CLEAR);
-
-            // Go to next menu entry
-            ptrMenu_L1 = ptrMenu_L1->next;
-
-            // Assign new display function
-            fptr_lcd_function_line1 = ptrMenu_L1->display_function;
-
-            // Set Line1 display update flag
-            display.flag.line1_full_update = 1;
-
-            // Clear button flag
-            button.flag.star = 0;
-        }
-        // NUM button event ---------------------------------------------------------------------
-        // (Short) Advance to next menu item
-        else if (button.flag.num) {
-            // Clear rfBSL confirmation flag
-            //rfBSL_button_confirmation = 0;
-
-            // Clean up display before activating next menu item
-            fptr_lcd_function_line2(LINE2, DISPLAY_LINE_CLEAR);
-
-            // Go to next menu entry
-            ptrMenu_L2 = ptrMenu_L2->next;
-
-            // Assign new display function
-            fptr_lcd_function_line2 = ptrMenu_L2->display_function;
-
-            // Set Line2 display update flag
-            display.flag.line2_full_update = 1;
-
-            // Clear button flag
-            button.flag.num = 0;
-        }
-        // UP button event ---------------------------------------------------------------------
-        // Activate user function for Line1 menu item
-        else if (button.flag.up) {
-            // Call direct function
-            ptrMenu_L1->sx_function(LINE1);
-
-            // Set Line1 display update flag
-            display.flag.line1_full_update = 1;
-
-            // Clear button flag
-            button.flag.up = 0;
-        }
-        // DOWN button event ---------------------------------------------------------------------
-        // Activate user function for Line2 menu item
-        else if (button.flag.down) {
-            //if (ptrMenu_L2 == &menu_L2_RFBSL)
-            //{
-            //}
-
-            // Call direct function
-            ptrMenu_L2->sx_function(LINE2);
-
-            // Set Line1 display update flag
-            display.flag.line2_full_update = 1;
-
-            // Clear button flag
-            button.flag.down = 0;
-        }
-    }
+        button.flag.num_long = 0;         // Clear button event
+        ptrMenu_L2->mx_function(LINE2);   // Call sub menu function
+        display.flag.full_update = 1;     // Set display update flag
+    } else if (button.flag.star) {
+		fptr_lcd_function_line1(LINE1, DISPLAY_LINE_CLEAR);     // Clean up display before activating next menu item
+		ptrMenu_L1 = ptrMenu_L1->next;                          // Go to next menu entry
+		fptr_lcd_function_line1 = ptrMenu_L1->display_function; // Assign new display function
+		display.flag.line1_full_update = 1;                     // Set Line1 display update flag
+		button.flag.star = 0;                                   // Clear button flag
+	} else if (button.flag.num) {
+		fptr_lcd_function_line2(LINE2, DISPLAY_LINE_CLEAR);     // Clean up display before activating next menu item
+		ptrMenu_L2 = ptrMenu_L2->next;                          // Go to next menu entry
+		fptr_lcd_function_line2 = ptrMenu_L2->display_function; // Assign new display function
+		display.flag.line2_full_update = 1;                     // Set Line2 display update flag
+		button.flag.num = 0;                                    // Clear button flag
+	} else if (button.flag.up) {
+		ptrMenu_L1->sx_function(LINE1);     // Call direct function
+		display.flag.line1_full_update = 1; // Set Line1 display update flag
+		button.flag.up = 0;                 // Clear button flag
+	} else if (button.flag.down) {
+		ptrMenu_L2->sx_function(LINE2);     // Call direct function
+		display.flag.line2_full_update = 1; // Set Line1 display update flag
+		button.flag.down = 0;               // Clear button flag
+	}
     // Process internal events
-    if (sys.all_flags) {
-        // Idle timeout ---------------------------------------------------------------------
-        if (sys.flag.idle_timeout) {
-            // Clear timeout flag
-            sys.flag.idle_timeout = 0;
-
-            // Clear display
-            clear_display();
-
-            // Set display update flags
-            display.flag.full_update = 1;
-        }
+    if (sys.flag.idle_timeout) {
+        sys.flag.idle_timeout = 0;            // Clear timeout flag
+        clear_display();                      // Clear display
+        display.flag.full_update = 1;         // Set display update flags
     }
-    // Disable idle timeout
-    sys.flag.idle_timeout_enabled = 0;
+    sys.flag.idle_timeout_enabled = 0;            // Disable idle timeout
 }
 
 // *************************************************************************************************
@@ -457,22 +240,6 @@ void wakeup_event(void) {
 // @return      none
 // *************************************************************************************************
 void process_requests(void) {
-    // Do temperature measurement
-    //if (request.flag.temperature_measurement)
-    //    temperature_measurement(FILTER_ON);
-
-    // Do pressure measurement
-    //if (request.flag.altitude_measurement)
-    //    do_altitude_measurement(FILTER_ON);
-
-    // Do acceleration measurement
-    //if (request.flag.acceleration_measurement)
-    //    do_acceleration_measurement();
-
-    // Do voltage measurement
-    //if (request.flag.voltage_measurement)
-    //    battery_measurement();
-
     // Generate alarm (two signals every second)
     if (request.flag.buzzer)
         start_buzzer(2, BUZZER_ON_TICKS, BUZZER_OFF_TICKS);
@@ -488,62 +255,16 @@ void process_requests(void) {
 // @return      none
 // *************************************************************************************************
 void display_update(void) {
-    u8 line;
-    u8 string[8];
-
-    // ---------------------------------------------------------------------
-    // Call Line1 display function
     if (display.flag.full_update || display.flag.line1_full_update) {
         clear_line(LINE1);
         fptr_lcd_function_line1(LINE1, DISPLAY_LINE_UPDATE_FULL);
-    } else if (ptrMenu_L1->display_update()) {
-        // Update line1 only when new data is available
-        fptr_lcd_function_line1(LINE1, DISPLAY_LINE_UPDATE_PARTIAL);
-    }
+    } else if (ptrMenu_L1->display_update()) fptr_lcd_function_line1(LINE1, DISPLAY_LINE_UPDATE_PARTIAL);
 
-    // ---------------------------------------------------------------------
-    // If message text should be displayed on Line2, skip normal update
-    if (message.flag.show) {
-        line = LINE2;
-
-        // Select message to display
-        if (message.flag.type_locked)
-            memcpy(string, "  LO?T", 6);
-        else if (message.flag.type_unlocked)
-            memcpy(string, "  OPEN", 6);
-        else if (message.flag.type_lobatt)
-            memcpy(string, "LOBATT", 6);
-        else if (message.flag.type_alarm_on) {
-            memcpy(string, "  ON", 4);
-            line = LINE1;
-        } else if (message.flag.type_alarm_off) {
-            memcpy(string, " OFF", 4);
-            line = LINE1;
-        }
-        // Clear previous content
-        clear_line(line);
-        fptr_lcd_function_line2(line, DISPLAY_LINE_CLEAR);
-
-        if (line == LINE2)
-            display_chars(LCD_SEG_L2_5_0, string, SEG_ON);
-        else
-            display_chars(LCD_SEG_L1_3_0, string, SEG_ON);
-
-        // Next second tick erases message and repaints original screen content
-        message.all_flags = 0;
-        message.flag.erase = 1;
-    }
-    // ---------------------------------------------------------------------
-    // Call Line2 display function
-    else if (display.flag.full_update || display.flag.line2_full_update) {
+    if (display.flag.full_update || display.flag.line2_full_update) {
         clear_line(LINE2);
         fptr_lcd_function_line2(LINE2, DISPLAY_LINE_UPDATE_FULL);
-    } else if (ptrMenu_L2->display_update() && !message.all_flags) {
-        // Update line2 only when new data is available
-        fptr_lcd_function_line2(LINE2, DISPLAY_LINE_UPDATE_PARTIAL);
-    }
-    // Clear display flag
-    display.all_flags = 0;
+    } else if (ptrMenu_L2->display_update()) fptr_lcd_function_line2(LINE2, DISPLAY_LINE_UPDATE_PARTIAL);
+    display.all_flags = 0;    // Clear display flag
 }
 
 // *************************************************************************************************
@@ -557,44 +278,3 @@ void to_lpm(void) {
     _BIS_SR(LPM3_bits + GIE);
     __no_operation();
 }
-
-// *************************************************************************************************
-// @fn          idle_loop
-// @brief       Go to LPM. Service watchdog timer when waking up.
-// @param       none
-// @return      none
-// *************************************************************************************************
-void idle_loop(void) {
-    // To low power mode
-    to_lpm();
-
-#ifdef USE_WATCHDOG
-    // Service watchdog
-    WDTCTL = WDTPW + WDTIS__512K + WDTSSEL__ACLK + WDTCNTCL;
-#endif
-}
-
-// *************************************************************************************************
-// @fn          read_calibration_values
-// @brief       Read calibration values for temperature measurement, voltage measurement
-//                              and radio from INFO memory.
-// @param       none
-// @return      none
-// *************************************************************************************************
-//void read_calibration_values(void) {
-//    u8 cal_data[CALIBRATION_DATA_LENGTH]; // Temporary storage for constants
-//    u8 i;
-//    u8 *flash_mem;                        // Memory pointer
-//
-//    // Read calibration data from Info D memory
-//    flash_mem = (u8 *) 0x1800;
-//    for (i = 0; i < CALIBRATION_DATA_LENGTH; i++) {
-//        cal_data[i] = *flash_mem++;
-//    }
-//
-//    if (cal_data[0] == 0xFF) {
-//        sBatt.offset = -10;
-//    } else {
-//        sBatt.offset = (s16) ((cal_data[4] << 8) + cal_data[5]);
-//    }
-//}

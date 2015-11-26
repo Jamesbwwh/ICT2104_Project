@@ -20,7 +20,7 @@ extern const struct menu menu_L1_Time;
 extern const struct menu menu_L1_Alarm;
 
 // Line2 navigation
-//extern const struct menu menu_L2_Date;
+extern const struct menu menu_L2_Date;
 //extern const struct menu menu_L2_Stopwatch;
 //extern const struct menu menu_L2_Battery;
 
